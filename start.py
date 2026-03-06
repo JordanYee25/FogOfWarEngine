@@ -15,6 +15,7 @@ while True:
         PGN = newGame.PGN
         print("Game PGN: ", PGN)
     elif gamestep == "gameover": 
+        pygame.time.wait(3000) # Show screen for 3 seconds after game over
         break
 
     #Otherwise if you want PGN at every frame... for some reason:

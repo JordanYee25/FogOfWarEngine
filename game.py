@@ -179,11 +179,13 @@ class game:
     
     #Dependent on computerMove being called at the right time, i.e after player has made move
     #Board will know who's tunr it is and will make a random move for that player
+    #Computer will use sunfish to make move, using getSunfishMove() function in gameState
     def computerMove(self):
         legalMoves = list(self.gameState.board.legal_moves)
         if legalMoves:
-            move = random.choice(legalMoves)
+            move = self.gameState.getSunfishMove()
             self.gameState.board.push(move)
+            
             self.PGN.append(self.gameState.board.peek().uci()) #Append move to PGN list
 
             self.drawBoard(self.DISPLAYSURF)
