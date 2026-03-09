@@ -1,3 +1,5 @@
+import time
+
 import pygame, sys, random, chess, platform
 from gameState import gameState
 from pygame.locals import *
@@ -43,8 +45,7 @@ class game:
         elif platform.system() == "Darwin": 
             self.PIECE_FONT = pygame.font.SysFont('applesymbols', int(self.SQUARESIZE * 0.8))  # Mac
 
-        self.drawBoard(self.DISPLAYSURF)
-        self.drawPieces(self.DISPLAYSURF, self.gameState)  
+        self.redraw()
 
     #*****************************
     #       Diplay Functions
@@ -63,42 +64,42 @@ class game:
                     pygame.draw.rect(Display, config.SQUARECOLOR_LIGHT, rect)
 
 
-    def drawPieces(self, Display, board_state):
-        # Iterate through all squares on the chess board
+    def drawPieces(self, Display):
+        # Iterate through the visible squares from observation
         # Draw pieces depending on whether player is white or black, and what piece it is
-        for square in chess.SQUARES:
-            piece = board_state.board.piece_at(square)
-            if piece:
-                col, row = self.square2Display(square)
         
-                piece_symbol = piece.symbol()  # Returns 'K', 'q', 'P', etc.
-                unicode_piece = self.UNICODE_PIECES[piece_symbol]
-                piece_surface = self.PIECE_FONT.render(unicode_piece, True, (0, 0, 0))
-                #Center
-                piece_rect = piece_surface.get_rect()
-                piece_rect.center = (col * self.SQUARESIZE + self.SQUARESIZE /
-                                    2, row * self.SQUARESIZE + self.SQUARESIZE / 2)
-                Display.blit(piece_surface, piece_rect)
-        
-        # for row in range(8):
-        #     for col in range(8):
-        #         # pythonChess uses rank 0-7 (bottom to top) and file 0-7 (left to right)
-        #         #flip the row since pygame draws top to bottom
-        #         chess_square = chess.square(col, 7 - row)
-        #         piece = board_state.board.piece_at(chess_square)
-                
-        #         if piece:
-        #             piece_symbol = piece.symbol()  # Returns 'K', 'q', 'P', etc.
-        #             unicode_piece = self.UNICODE_PIECES[piece_symbol]
-        #             piece_surface = self.PIECE_FONT.render(unicode_piece, True, (0, 0, 0))
-                    
-        #             #Center
-        #             piece_rect = piece_surface.get_rect()
-        #             piece_rect.center = (col * self.SQUARESIZE + self.SQUARESIZE / 2,
-        #                                 row * self.SQUARESIZE + self.SQUARESIZE / 2)
-                    
-        #             Display.blit(piece_surface, piece_rect)
+        observation = self.gameState.getObservation(config.PLAYER_COLOR)
 
+        for visiblePiece in observation.visiblePieces:
+            piece = observation.visiblePieces[visiblePiece].symbol()  # Returns 'K', 'q', 'P', etc.
+            col , row = self.square2Display(visiblePiece)
+
+            unicodePiece = self.UNICODE_PIECES[piece]
+            pieceSurface = self.PIECE_FONT.render(unicodePiece, True, (0, 0, 0))
+            #Center
+            pieceRect = pieceSurface.get_rect()
+            pieceRect.center = (col * self.SQUARESIZE + self.SQUARESIZE / 2, row * self.SQUARESIZE + self.SQUARESIZE / 2)
+            Display.blit(pieceSurface, pieceRect)
+
+        self.drawFog(Display, observation.visibleSquares)
+            
+        #debug to show visible squares, shows app pieces regardless of side
+        # for square in chess.SQUARES:
+        #     piece = self.gameState.board.piece_at(square)
+        #     if piece:
+        #         col, row = self.square2Display(square)
+        
+        #         piece_symbol = piece.symbol()  # Returns 'K', 'q', 'P', etc.
+        #         unicode_piece = self.UNICODE_PIECES[piece_symbol]
+        #         piece_surface = self.PIECE_FONT.render(unicode_piece, True, (0, 0, 0))
+        #         #Center
+        #         piece_rect = piece_surface.get_rect()
+        #         piece_rect.center = (col * self.SQUARESIZE + self.SQUARESIZE /
+        #                             2, row * self.SQUARESIZE + self.SQUARESIZE / 2)
+        #         Display.blit(piece_surface, piece_rect)
+        # #only draw fog if it is the players turn
+        # if self.gameState.turn == config.PLAYER_COLOR:
+        #     self.drawFog(Display, observation.visibleSquares)
 
     #Given a square, if there exists a piece return the squares that it can move to
     def drawMoves(self, square):
@@ -111,8 +112,7 @@ class game:
     #Whenver the user clicks on a piece circles should pop up that show where the piece can move
     def drawMoveIndicators(self, Display, moveSquare):
         #Clear dots by redrawing the game board and pieces from the pychess board
-        self.drawBoard(self.DISPLAYSURF)
-        self.drawPieces(self.DISPLAYSURF, self.gameState)
+        self.redraw()
 
         for square in moveSquare:
             col, row = self.square2Display(square)
@@ -126,6 +126,13 @@ class game:
             pygame.draw.circle(surface, (50, 50, 50, 150), (radius, radius), radius)
             Display.blit(surface, (center_x - radius, center_y - radius))
 
+    def drawFog(self, Display, visibleSquares):
+        print(len(visibleSquares))
+        for square in chess.SQUARES:
+            if square not in visibleSquares:
+                col, row = self.square2Display(square)
+                rect = pygame.Rect(col * self.SQUARESIZE, row * self.SQUARESIZE, self.SQUARESIZE, self.SQUARESIZE)
+                pygame.draw.rect(Display, (100, 100, 100), rect)
 
     def legalPieceMoves(self, square):
         piece = self.gameState.board.piece_at(square)
@@ -139,7 +146,6 @@ class game:
                 legalPieceMoves.append(move)
     
         return legalPieceMoves
-    
 
     def display2Square(self, x, y):
         col = int(x / self.SQUARESIZE)
@@ -154,6 +160,12 @@ class game:
         row = 7 - rank if config.PLAYER_COLOR == chess.WHITE else rank
         col = col if config.PLAYER_COLOR == chess.WHITE else 7 - col
         return col, row
+
+    def redraw(self):
+        self.drawBoard(self.DISPLAYSURF)
+        self.drawPieces(self.DISPLAYSURF)
+        pygame.display.update()
+
 
 
     #*****************************
@@ -173,50 +185,55 @@ class game:
                 self.gameState.board.push(selectedMove)
                 self.PGN.append(self.gameState.board.peek().uci()) #Append move to PGN list
 
-                self.drawBoard(self.DISPLAYSURF)
-                self.drawPieces(self.DISPLAYSURF, self.gameState)
+                self.redraw()
+
                 return "move"
     
     #Dependent on computerMove being called at the right time, i.e after player has made move
-    #Board will know who's tunr it is and will make a random move for that player
-    #Computer will use sunfish to make move, using getSunfishMove() function in gameState
+    #Computer will use sunfish to make move, using getSunfishMove() function in gameState and using observation
     def computerMove(self):
         legalMoves = list(self.gameState.board.legal_moves)
         if legalMoves:
+            self.redraw()
+
             move = self.gameState.getSunfishMove()
             self.gameState.board.push(move)
             
             self.PGN.append(self.gameState.board.peek().uci()) #Append move to PGN list
 
-            self.drawBoard(self.DISPLAYSURF)
-            self.drawPieces(self.DISPLAYSURF, self.gameState)
+            self.redraw()
+
             return "move"
         return None
-
+        
     def step(self):
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
                 sys.exit()   
 
-            if event.type == pygame.MOUSEBUTTONDOWN and self.gameState.board.turn == config.PLAYER_COLOR:
-                x, y = event.pos
-                #Convert Display X Y to board X Y square
-                clickedSquare = self.display2Square(x, y)
+            if self.gameState.board.turn == config.PLAYER_COLOR:
+                if event.type == pygame.MOUSEBUTTONUP: 
+                    x, y = event.pos
+                    #Convert Display X Y to board X Y square
+                    clickedSquare = self.display2Square(x, y)
+                    
+                    #Check if clicked square has a piece of current player, if so draw moves
+                    clickedPiece = self.gameState.board.piece_at(clickedSquare)
+                    if clickedPiece and clickedPiece.color == self.gameState.board.turn:
+                        self.selectedPiece = clickedPiece
+                        self.selectedPieceSquare = clickedSquare
+                        self.drawMoves(clickedSquare)   #Draw indication circles
+                    
+                    return self.makeMove(clickedSquare)
                 
-                #Check if clicked square has a piece of current player, if so draw moves
-                clickedPiece = self.gameState.board.piece_at(clickedSquare)
-                if clickedPiece and clickedPiece.color == self.gameState.board.turn:
-                    self.selectedPiece = clickedPiece
-                    self.selectedPieceSquare = clickedSquare
-                    self.drawMoves(clickedSquare)   #Draw indication circles
-                
-                return self.makeMove(clickedSquare)
-            elif self.gameState.board.turn != config.PLAYER_COLOR:
-                return self.computerMove()
+        if self.gameState.board.turn != config.PLAYER_COLOR:
+            time.sleep(2)
+            return self.computerMove()
         
 
         if self.gameState.isGameOver():
+            pygame.display.update()     #possibly add in function to show full board when over
             self.PGN.append(self.gameState.board.result()) #Append result to PGN list
             return "gameover"
 

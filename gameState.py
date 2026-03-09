@@ -1,16 +1,18 @@
 
+import random
+
 import config
 import chess
+from observation import Observation
+from beliefState import beliefState
 import sunfish
 import time
 
 #File for running game operations. This will handle things like the board state and interacting with the chessAPI
+
 class gameState:
 
-    #board is a state of the board currently
-    #move is the last move that resulted in this new board
-    #boardState has a param for board as it doesnt assume all board begin from the zero move state
-    #This allows any variation of chess board to be input
+    #gamestate is a state of the board currently
     def __init__(self, board : chess.Board = chess.Board()):
         self.board = board.copy() 
         self.turn = self.board.turn
@@ -19,18 +21,24 @@ class gameState:
         self.winner = None # 'white' or 'black'
         self.draw = False
 
-        # Integer value of points, white_pts being a value of 5 (for example) means that 
-        # white has captured exactly enough of blacks pieces to get 5 points
+        # Integer value of points
         # Pawn = 1      Knight = 3
         # Bishop = 3    Rook = 5
         # Queen = 9     King = Win condt
-        # self.white_pts = 0 
-        # self.black_pts = 0  
+
+
+        self.beliefState = beliefState()
+        self.beliefState.generateParticles()
 
     # Ret True or False (game not over)
     def isGameOver(self):
         return self.board.is_game_over()
     
+
+    #############################
+    #   Sunfish Conversions
+    #############################
+
     #Convert a pygame board to sunfish board, see sunfish.py for more details
     #A sunfish board is represented as a 120 character string where each character is either a space or a piece (rnbqkp)
     #The board dimensions are 10 wide by 12 tall, the width has a padding of 1 and the length/files have a padding of 2
@@ -47,7 +55,7 @@ class gameState:
     # " RNBQKBNR "  #  90 - 99
     # "          "  # 100 -109
     # "          "  # 110 -119
-    def game2Sunfish(self):
+    def game2Sunfish(self, board : chess.Board):
         sunfishBoard = [" "]*120
 
         #Set empty board with periods as squares
@@ -60,7 +68,7 @@ class gameState:
 
 
         for square in chess.SQUARES:
-            piece = self.board.piece_at(square)
+            piece = board.piece_at(square)
             if piece:
                 file = chess.square_file(square)
                 rank = chess.square_rank(square)
@@ -70,14 +78,14 @@ class gameState:
         boardString = "".join(sunfishBoard)
         # Sunfish always thinks it is white
         # If black, flip the board and swap piece case so black becomes "white" from Sunfish's view
-        if self.board.turn == chess.BLACK:
+        if board.turn == chess.BLACK:
             boardString = boardString[::-1].swapcase()
 
         return boardString
     
-    def sunfishMove2ChessMove(self, sunfishMove):\
-        #Sunfish retuns the move as the from square and dest square as ints, and promotion. My implementation currently only promotes to queen
-        fromIndex, destIndex, _ = sunfishMove
+    def sunfishMove2ChessMove(self, sunfishMove):
+        #Sunfish retuns the move as the from square and dest square as ints, and promotion
+        fromIndex, destIndex, promotion = sunfishMove
         
         if self.board.turn == chess.BLACK:
             fromIndex = 119 - fromIndex
@@ -89,19 +97,31 @@ class gameState:
         destFile = (destIndex % 10) - 1
         destRank = 7 - (destIndex // 10 - 2)
         
+        if promotion:
+            promotionPiece = chess.Piece.from_symbol(promotion).piece_type
+            return chess.Move(chess.square(fromFile, fromRank), chess.square(destFile, destRank), promotionPiece)
+        
         return chess.Move(chess.square(fromFile, fromRank), chess.square(destFile, destRank))
     
     def getSunfishMove(self):
-        boardString = self.game2Sunfish()
-        #print(boardString)
+        self.updateBeliefState()
+        particle = random.choice(self.beliefState.particles)
+        particle.turn = self.board.turn #Since particles start out with white to move as default, switch if computer is black
+
+        boardString = self.game2Sunfish(particle)
+
+        #Debug print
+        for row in range(2, 10):
+            print(boardString[row*10+1 : row*10+9])
+
 
         # A sunfish position is represented as a tuple of (board, score, wc, bc, ep, kp) where:
         # board -- a 120 char representation of the board
         # score -- the board evaluation
         # wc -- the castling rights, [west/queen side, east/king side]
         # bc -- the opponent castling rights, [west/king side, east/queen side]
-        # ep - the en passant square / allows for en passent 
-        # kp - the king passant square / makes sure the king cant be captured through en passent
+        # ep -- the en passant square / allows for en passent 
+        # kp -- the king passant square / makes sure the king cant be captured through en passent
 
         # Get from pychess if castling rights are available for each side and en passant square if it exists, otherwise 0
         whiteCastlingRights = (self.board.has_queenside_castling_rights(chess.WHITE), self.board.has_kingside_castling_rights(chess.WHITE))
@@ -113,13 +133,44 @@ class gameState:
         pos = sunfish.Position(boardString, 0, whiteCastlingRights, blackCastlingRights, ep, kp)
         searcher = sunfish.Searcher()
         start = time.time()
-        best_move = None
+        bestSunfishMove = None
         for depth, gamma, score, move in searcher.search([pos]):
             if move is not None:
-                best_move = move
-
+                bestSunfishMove = move
             #Only allow break if sunfish has found a move and it's depth and time are above the thresholds
-            if best_move and (depth >= config.SUNFISH_DEPTH or (time.time() - start > config.SUNFISH_TIME)):  # 1.5 second time limit
+            if bestSunfishMove and (depth >= config.SUNFISH_DEPTH or (time.time() - start > config.SUNFISH_TIME)):  # 1.5 second time limit
                 break
-        #print(best_move)
-        return self.sunfishMove2ChessMove(best_move)
+
+        best_move = self.sunfishMove2ChessMove(bestSunfishMove)
+
+        #Case beliefstate suggests an illegal move (legal in their eyes), choose a random move
+        if best_move not in self.board.legal_moves:
+            print("Illegal move, random move made")
+            best_move = random.choice(list(self.board.legal_moves))
+
+        if self.board.is_capture(best_move):
+            captured_piece = self.board.piece_at(best_move.to_square)
+            self.signalCapturedPiece(captured_piece)
+        return best_move
+    
+
+    #############################
+    #   Observation Access
+    #############################
+
+    def getObservation(self, color):
+        return Observation(self.board, color)
+    
+    #############################
+    #   Belief State Access
+    #############################
+
+    def signalCapturedPiece(self, piece):
+        if piece and piece.color == config.PLAYER_COLOR:
+            self.beliefState.capturedPieces[piece.piece_type] += 1
+
+    def updateBeliefState(self):
+        observation = self.getObservation(not config.PLAYER_COLOR)
+        #print("Computer visible pieces:", observation.visiblePieces)
+        self.beliefState.updateParticles(observation)
+

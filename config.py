@@ -12,6 +12,7 @@ SQUARECOLOR_DARK = (118, 150, 86)
 
 PLAYER_COLOR = chess.WHITE # Set to chess.BLACK for black pieces, chess.WHITE for white pieces
 
-
+#Around 6 depth and 2 seconds sunfish gets really strong
 SUNFISH_DEPTH = 2 #Depth of how many moves Sunfish will look ahead. Higher means stronger
-SUNFISH_TIME = 1.5 #SImilarly, how long can Sufish think for ,longer is stronger
+SUNFISH_TIME = 1.5 #Similarly, how long can Sufish think for ,longer is stronger
+
