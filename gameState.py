@@ -104,11 +104,10 @@ class gameState:
         return chess.Move(chess.square(fromFile, fromRank), chess.square(destFile, destRank))
     
     def getSunfishMove(self):
-        self.updateBeliefState()
         particle = random.choice(self.beliefState.particles)
-        particle.turn = self.board.turn #Since particles start out with white to move as default, switch if computer is black
+        particle.board.turn = self.board.turn #Since particles start out with white to move as default, switch if computer is black
 
-        boardString = self.game2Sunfish(particle)
+        boardString = self.game2Sunfish(particle.board)
 
         #Debug print
         for row in range(2, 10):
@@ -169,8 +168,19 @@ class gameState:
         if piece and piece.color == config.PLAYER_COLOR:
             self.beliefState.capturedPieces[piece.piece_type] += 1
 
-    def updateBeliefState(self):
-        observation = self.getObservation(not config.PLAYER_COLOR)
-        #print("Computer visible pieces:", observation.visiblePieces)
-        self.beliefState.updateParticles(observation)
+    def propagatePlayerMove(self):
+        self.beliefState.propagatePlayerMove()
 
+    def propagateComputerMove(self, computerMove):
+        self.beliefState.propagateComputerMove(computerMove)
+
+    def updateBeliefState(self):
+        #Propagrate Random player move (instead of random, choose best player move?)
+        #make obsersvation
+        observation = self.getObservation(not config.PLAYER_COLOR)
+        #Filter particles that dont align with observation and replenish discarded ones, make a random ove for white
+        self.beliefState.updateParticles(observation)
+        #Propagrate computer move
+
+
+    

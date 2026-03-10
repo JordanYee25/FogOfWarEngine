@@ -127,7 +127,6 @@ class game:
             Display.blit(surface, (center_x - radius, center_y - radius))
 
     def drawFog(self, Display, visibleSquares):
-        print(len(visibleSquares))
         for square in chess.SQUARES:
             if square not in visibleSquares:
                 col, row = self.square2Display(square)
@@ -177,8 +176,9 @@ class game:
         selectedPieceMoves = self.legalPieceMoves(self.selectedPieceSquare)
         for move in selectedPieceMoves:
             if move.to_square == clickedSquare:
+                
                 selectedMove = move
-                #Move selected piece to move/make move in pychess and redraw
+
                 if move.promotion:
                     selectedMove = chess.Move(self.selectedPieceSquare, clickedSquare, chess.QUEEN)
                 
@@ -196,11 +196,13 @@ class game:
         if legalMoves:
             self.redraw()
 
+            self.gameState.propagatePlayerMove()
+            self.gameState.updateBeliefState()
             move = self.gameState.getSunfishMove()
             self.gameState.board.push(move)
-            
-            self.PGN.append(self.gameState.board.peek().uci()) #Append move to PGN list
+            self.gameState.propagateComputerMove(move)
 
+            self.PGN.append(self.gameState.board.peek().uci()) #Append move to PGN list
             self.redraw()
 
             return "move"

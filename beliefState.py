@@ -3,9 +3,10 @@
 import config
 from observation import Observation
 import chess, random
+from particle import Particle
 
 class beliefState:
-    def __init__(self, numParticles=100):
+    def __init__(self, numParticles=5000):
         self.numParticles = numParticles
         self.particles = []     #Particles for the almighty particle filter 
         self.Computercolor = not config.PLAYER_COLOR
@@ -20,36 +21,40 @@ class beliefState:
             chess.KING: 0
         }
 
-
     #Called once at start of game
     def generateParticles(self):
         self.particles = []
         for particle in range(self.numParticles):
-            newParticleBoard = chess.Board()  #Start with a standard chess board populated with pieces in initial positon
-            self.particles.append(newParticleBoard)
+            self.particles.append(Particle())
+
+    def propagateComputerMove(self, computerMove):
+        for particle in self.particles:
+            particle.propagate(computerMove)
+            
+    def propagatePlayerMove(self):
+        for particle in self.particles:
+            particle.propagate()
 
     def updateParticles(self, observation):
         newParticles = []
 
         #Remove particles that aren't consistent with the observation
         for particle in self.particles:
-            if self.isConsistent(particle, observation):
+            if particle.isConsistent(observation):
                 newParticles.append(particle)
-        
-        #Guesstimate new particles if less than num particles
-        if len(newParticles) < self.numParticles:
-            while len(newParticles) < self.numParticles:
-                newParticles.append(self.guesstimate(observation)) 
+        print(f"Surviving particles: {len(newParticles)} / {self.numParticles}")
 
+        #Guesstimate new particles if less than num particles
+        if len(newParticles) == 0:
+            print("REACHED ZERO")
+            while len(newParticles) < self.numParticles:
+                newParticles.append(Particle(self.guesstimate(observation))) 
+        else:
+            while len(newParticles) < self.numParticles:
+                newParticle = Particle(random.choice(newParticles).board)
+                newParticles.append(newParticle)
         self.particles = newParticles #update :D
 
-    def isConsistent(self, particle, observation):
-        for square in observation.visibleSquares:
-            piece = particle.piece_at(square)
-            if piece != observation.visiblePieces.get(square, None):
-                return False
-        
-        return True
     
     #Guesstimate the board state, all frienly pieces and visible enemy pieces should not be random
     def guesstimate(self, observation):
@@ -82,7 +87,7 @@ class beliefState:
                         availablePieces = {p: c for p, c in enemyPieces.items() if c > 0}
                         if not availablePieces:
                             break
-                        pieceType = random.choices(list(enemyPieces.keys()), weights=enemyPieces.values())[0] #Randomly select a piece type to place based on how many of each piece type are left to be placed
+                        pieceType = random.choices(list(availablePieces.keys()), weights=list(availablePieces.values()))[0] #Randomly select a piece type to place based on how many of each piece type are left to be placed
                         if enemyPieces[pieceType] > 0: #If there are still pieces of that type left to be placed
                             board.set_piece_at(square, chess.Piece(pieceType, config.PLAYER_COLOR)) #Place the piece on the board
                             enemyPieces[pieceType] -= 1 #Decrement the count of that piece type that is left to be placed
