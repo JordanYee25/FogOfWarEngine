@@ -1,6 +1,34 @@
-To run an example game, install the following dependencies, and run start.py
+Install the dependencies first:
 
 pip install chess pygame
+
+
+Fog of War Assistant (assistant.py)
+
+Run assistant.py to use the engine as your helper while you play a Fog of War game against someone else (a website, a friend, anywhere). You play as the engine's eyes: you tell it what you can see, and it tells you what it would play.
+
+1. Pick the colour you are playing.
+2. Your turn: the engine thinks for a few seconds and draws its top moves as arrows, with a score, how many of its imagined boards agreed, and any risk to your king. Press Enter (or the Play button) to take the top suggestion, click another row, or just click any of your pieces and a square to enter the move you really played.
+3. What your move revealed: if your move uncovered new squares (outlined in yellow), place any enemy pieces you can now see and press Enter. Skipped automatically if nothing new came into view.
+4. Their turn: once your opponent has moved, make the enemy pieces on this board match your screen and press Enter.
+   - Nothing visible changed? Just press Enter. That is the hidden move case: the engine assumes they moved somewhere in the fog and spreads its belief over every move they could have made.
+   - A piece moved where you can see it: drag it to its new square.
+   - A piece appeared: pick it from the palette (or press P N B R Q K) and click the square.
+   - A piece walked into the fog: right-click it to remove it.
+   - One of your pieces was taken: drop the capturing piece onto it, or right-click your piece if you can't see what took it.
+   - A square in front of your pawn is fogged on your screen even though it looks empty here: something is blocking the pawn, so right-click that square to mark it blocked.
+   The "Engine reads this as" box shows how your edits are being interpreted (for example "Opponent moved knight g8-f6" or "Nothing visible changed: the move was hidden in the fog") before you confirm.
+
+Fogged squares are tinted red by how likely an enemy piece is hiding there, and faded pieces show the engine's best guess of what is on each square. Hover a fogged square for the full breakdown.
+
+Keys: Enter confirm / play, Ctrl+Z or U undo a step, H heatmap, G guesses, F flip board, Tab cycle suggestions, + / - think time, E eraser, M move tool, Esc cancel.
+
+The assistant assumes standard Fog of War rules: you see every square your pieces can move to, there is no check, and capturing the king wins.
+
+
+Play against the computer (start.py)
+
+To play a game against the computer in this window instead, run start.py.
 
 
 
