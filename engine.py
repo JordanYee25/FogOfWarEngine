@@ -324,6 +324,14 @@ class FogEngine:
                     squares.add(square + 2 * step)
         return squares
 
+    # Squares our pawns could capture on. These are only visible while an enemy piece stands on them.
+    def pawnCaptureSquares(self):
+        squares = set()
+        for square, piece in self.board.piece_map().items():
+            if piece.color == self.color and piece.piece_type == chess.PAWN:
+                squares |= set(chess.SquareSet(chess.BB_PAWN_ATTACKS[self.color][square]))
+        return squares
+
     def candidateMoves(self):
         board = self._boardWith()
         return [move for move in board.generate_pseudo_legal_moves() if move.to_square not in self.blocked]
@@ -489,6 +497,8 @@ class FogEngine:
                 fromSquare = sources[0]
                 moverTypes = {removed[fromSquare]}
                 description[-1] += f" from {name(fromSquare)}"
+            if toSquare not in enemies and toSquare in visibleAfter:
+                description.append(f"Tip: you can still see {name(toSquare)}, so place the piece that took yours there")
         else:
             # Castling: king and rook both jump
             kingFrom = [s for s, t in removed.items() if t == chess.KING]
@@ -501,6 +511,10 @@ class FogEngine:
                 description.append("Opponent castled " + ("kingside" if kingside else "queenside"))
             elif len(added) == 1 and len(removed) <= 1:
                 square, pieceType = next(iter(added.items()))
+                # Could the piece have just arrived? Yes if we could see the square before (it was empty). Also yes
+                # if nothing disappeared: a square only a pawn capture sees is visible just while a piece is on it,
+                # and if nothing moved out of the way of our rays the piece can't have been revealed any other way.
+                arrived = square in visibleBefore or not removed or square in self.pawnCaptureSquares()
                 if removed:
                     origin, originType = next(iter(removed.items()))
                     lastRank = 0 if self.enemyColor == chess.BLACK else 7
@@ -508,10 +522,10 @@ class FogEngine:
                             and (self._reachable(chess.PAWN, origin, square)):
                         knownMove, promotion = (origin, square), pieceType
                         description.append(f"Opponent promoted {name(origin)}-{name(square)}={chess.piece_symbol(pieceType).upper()}")
-                    elif originType == pieceType and square in visibleBefore and self._reachable(pieceType, origin, square):
+                    elif originType == pieceType and arrived and self._reachable(pieceType, origin, square):
                         knownMove = (origin, square)
                         description.append(f"Opponent moved {pieceName(pieceType)} {name(origin)}-{name(square)}")
-                if knownMove is None and square in visibleBefore and pieceType == chess.PAWN:
+                if knownMove is None and arrived and pieceType == chess.PAWN:
                     # A pawn appearing on its fourth rank most likely made a double push. That matters because
                     # it can then be captured en passant.
                     step = 8 if self.enemyColor == chess.WHITE else -8
@@ -523,7 +537,7 @@ class FogEngine:
                         if self.board.piece_at(passed) is None and pawnGrid[origin] > fromPassed:
                             knownMove = (origin, square)
                             description.append(f"Opponent pushed a pawn {name(origin)}-{name(square)}")
-                if knownMove is None and square in visibleBefore:
+                if knownMove is None and arrived:
                     toSquare, moverTypes = square, {pieceType}
                     if chess.square_rank(square) == (0 if self.enemyColor == chess.BLACK else 7) and pieceType != chess.PAWN:
                         moverTypes.add(chess.PAWN)
@@ -582,6 +596,22 @@ class FogEngine:
 
         self.lastDoublePush = None
         self.toMove = self.color
-        hidden = report.toSquare is None and report.fromSquare is None
-        self.moveLog.append("(hidden)" if hidden else report.description[0])
+        self.moveLog.append(self._shortOpponentLabel(report))
         return report
+
+    # Compact notation for the move log: "?" hidden, "Nb8-c6" seen, "B?-b4" arrived from the fog, "Q?xd5" capture
+    @staticmethod
+    def _shortOpponentLabel(report):
+        if report.castleRook:
+            return "O-O" if chess.square_file(report.toSquare) == 6 else "O-O-O"
+        if report.toSquare is None and report.fromSquare is None:
+            return "?"
+        pieceType = next(iter(report.moverTypes)) if report.moverTypes and len(report.moverTypes) == 1 else None
+        letter = chess.piece_symbol(pieceType).upper() if pieceType else "?"
+        origin = chess.square_name(report.fromSquare) if report.fromSquare is not None else "?"
+        joiner = "x" if report.capturedOwn else "-"
+        destination = chess.square_name(report.toSquare) if report.toSquare is not None else "?"
+        label = letter + origin + joiner + destination
+        if report.promotion:
+            label += "=" + chess.piece_symbol(report.promotion).upper()
+        return label
