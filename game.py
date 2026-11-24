@@ -196,7 +196,6 @@ class game:
         if legalMoves:
             self.redraw()
 
-            self.gameState.propagatePlayerMove()
             self.gameState.updateBeliefState()
             move = self.gameState.getSunfishMove()
             self.gameState.board.push(move)

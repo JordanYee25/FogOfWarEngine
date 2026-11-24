@@ -28,3 +28,15 @@ An idea that I had was what if each piece had its own particle filter, then you 
 
 Additionally, a core part of the Bayes Filter is the probability of an observation being true. However, in our case observations are always true, so the proability of an observation being correct is 1, or in the case that an observation is disproved by the state, then P(observation|state) = 0
  
+
+Histogram Filter (V3)
+
+The belief state (beliefState.py) is now a Histogram filter, a discrete Bayes filter. Every enemy piece gets its own 64 square grid of probabilities, and the game always starts from the same known position so every grid starts out certain. Tracking each piece separately instead of one grid per piece type keeps information like "this pawn is on the e-file" or "this bishop lives on dark squares".
+
+Each enemy move runs two steps:
+- Prediction: probability flows from each square to the squares that piece could move to. Which piece moved is weighted by how many moves it has, by piece type (kings move less often than knights), and by whether the move would threaten our pieces or king, since players rarely move at random. Squares that probably hold another piece only partly block a sliding piece (it gets past with probability 1 - occupancy), so a guess never rules a square out completely.
+- Observation: a visible empty square drops to 0 for every piece, and a visible enemy piece is matched to the tracked piece that most likely is that piece (data association), which then becomes certain. A piece seen where no tracked piece could be means a pawn promoted, or the filter lost track of something, and it recovers by starting that piece's grid over.
+
+The engine (engine.py) draws several complete boards from the belief state: the most likely board plus random samples. Sunfish suggests a move on each board, then every shortlisted move is scored on every board and the scores are averaged, so a move only wins if it is good across the positions the enemy could really be in. The histogram also gives the probability that a hidden piece can capture our king after each move, and that risk is taken off the move's score.
+
+In testing (engine.py driven by only what it can see) the engine won 8 out of 8 games against Sunfish playing with the same fog and no belief state, with equal thinking time.

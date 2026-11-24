@@ -16,3 +16,7 @@ PLAYER_COLOR = chess.WHITE # Set to chess.BLACK for black pieces, chess.WHITE fo
 SUNFISH_DEPTH = 2 #Depth of how many moves Sunfish will look ahead. Higher means stronger
 SUNFISH_TIME = 1.5 #Similarly, how long can Sufish think for ,longer is stronger
 
+#Fog of war engine (engine.py)
+ENGINE_THINK_TIME = 3.0 #Seconds spent choosing each move
+ENGINE_SAMPLES = 8 #How many boards are drawn from the belief state and searched. More is steadier but each gets less time
+
