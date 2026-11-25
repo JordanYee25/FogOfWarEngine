@@ -22,6 +22,7 @@ class game:
         self.selectedPieceSquare = None
         self.SQUARESIZE = config.BOARDSIZE / 8 
         self.PGN = []
+        self.gameOver = False
         
         self.UNICODE_PIECES = {
             "K": "♔",
@@ -160,6 +161,60 @@ class game:
         col = col if config.PLAYER_COLOR == chess.WHITE else 7 - col
         return col, row
 
+    #Game over: lift the fog so the whole board is revealed, then show the result on a banner
+    def drawGameOver(self):
+        board = self.gameState.board
+        self.drawBoard(self.DISPLAYSURF)
+        for square, piece in board.piece_map().items():
+            col, row = self.square2Display(square)
+            pieceSurface = self.PIECE_FONT.render(self.UNICODE_PIECES[piece.symbol()], True, (0, 0, 0))
+            pieceRect = pieceSurface.get_rect()
+            pieceRect.center = (col * self.SQUARESIZE + self.SQUARESIZE / 2, row * self.SQUARESIZE + self.SQUARESIZE / 2)
+            self.DISPLAYSURF.blit(pieceSurface, pieceRect)
+
+        outcome = board.outcome()
+        reasons = {
+            chess.Termination.CHECKMATE: "Checkmate",
+            chess.Termination.STALEMATE: "Stalemate",
+            chess.Termination.INSUFFICIENT_MATERIAL: "Insufficient material",
+            chess.Termination.SEVENTYFIVE_MOVES: "75 move rule",
+            chess.Termination.FIVEFOLD_REPETITION: "Fivefold repetition",
+        }
+        reason = reasons.get(outcome.termination, "Game over") if outcome else "Game over"
+        if outcome is None or outcome.winner is None:
+            title, color = "Draw", (230, 230, 230)
+        elif outcome.winner == config.PLAYER_COLOR:
+            title, color = "You win!", (110, 220, 130)
+        else:
+            title, color = "You lose", (240, 100, 100)
+
+        size = config.BOARDSIZE
+        banner = pygame.Surface((size, int(size * 0.3)), pygame.SRCALPHA)
+        banner.fill((20, 20, 25, 215))
+        bannerTop = int(size * 0.35)
+        self.DISPLAYSURF.blit(banner, (0, bannerTop))
+        lines = [
+            (pygame.font.SysFont('arial', int(size * 0.09), bold=True), title, color),
+            (pygame.font.SysFont('arial', int(size * 0.04)), reason, (230, 230, 230)),
+            (pygame.font.SysFont('arial', int(size * 0.025)), "Click or press any key to close", (170, 170, 175)),
+        ]
+        y = bannerTop + size * 0.03
+        for font, text, textColor in lines:
+            surface = font.render(text, True, textColor)
+            self.DISPLAYSURF.blit(surface, surface.get_rect(midtop=(size / 2, y)))
+            y += surface.get_height() + size * 0.015
+        pygame.display.update()
+
+    #Keep the result screen up until the player clicks, presses a key or closes the window
+    def waitForClose(self):
+        pygame.event.clear()
+        while True:
+            for event in pygame.event.get():
+                if event.type in (QUIT, KEYDOWN, MOUSEBUTTONDOWN):
+                    pygame.quit()
+                    return
+            self.fps.tick(config.FPS)
+
     def redraw(self):
         self.drawBoard(self.DISPLAYSURF)
         self.drawPieces(self.DISPLAYSURF)
@@ -208,6 +263,14 @@ class game:
         return None
         
     def step(self):
+        #Checked first: if the computer is checkmated it is its turn, so a check after the move code is never reached
+        if self.gameState.isGameOver():
+            if not self.gameOver:
+                self.gameOver = True
+                self.PGN.append(self.gameState.board.result()) #Append result to PGN list
+                self.drawGameOver()
+            return "gameover"
+
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
@@ -232,11 +295,6 @@ class game:
             time.sleep(2)
             return self.computerMove()
         
-
-        if self.gameState.isGameOver():
-            pygame.display.update()     #possibly add in function to show full board when over
-            self.PGN.append(self.gameState.board.result()) #Append result to PGN list
-            return "gameover"
 
         pygame.display.update()
         self.fps.tick(config.FPS)
